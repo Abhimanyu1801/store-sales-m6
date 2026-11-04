@@ -1,2 +1,4 @@
-alert_email = "your-team-inbox@example.com"
-github_repo = "your-github-user/store-sales-forecasting"
+# Copy to terraform.tfvars before plan/apply.
+alert_email = "arajput4@CougarNet.UH.EDU"
+# GitHub OIDC subject now embeds owner/repo IDs: owner@ownerId/repo@repoId
+github_repo = "Abhimanyu1801@78227240/store-sales-m6@1445534641"
