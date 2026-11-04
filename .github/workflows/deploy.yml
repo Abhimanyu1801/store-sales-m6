@@ -33,9 +33,11 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build image in ACR (tag = commit SHA)
+      - name: Build and push image (tag = commit SHA; ACR Tasks are blocked on Azure for Students)
         run: |
-          az acr build -r "${{ vars.ACR_NAME }}" -t "$IMAGE_NAME:$IMAGE_TAG" .
+          az acr login -n "${{ vars.ACR_NAME }}"
+          docker build -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" .
+          docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG"
 
       - name: Connect to the cluster
         run: |
@@ -45,6 +47,14 @@ jobs:
         run: |
           VARS='${ACR_LOGIN_SERVER} ${IMAGE_TAG} ${KEY_VAULT_URL} ${STORAGE_ACCOUNT} ${APP_CLIENT_ID} ${APP_HOST}'
           for f in k8s/*.yaml; do envsubst "$VARS" < "$f" | kubectl apply -f -; done
+
+      - name: Run database migration (idempotent)
+        run: |
+          for i in $(seq 1 30); do
+            if kubectl -n "$NS" exec deploy/api -- python -c "from state import run_migrations; run_migrations()"; then exit 0; fi
+            sleep 10
+          done
+          exit 1
 
       - name: Wait for rollout (readiness = model files + database)
         id: rollout

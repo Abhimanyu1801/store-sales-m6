@@ -39,7 +39,7 @@ spec:
 YAML
 
 echo "Building image $IMAGE_TAG in ACR (takes a few minutes)..."
-az acr build -r "$ACR" -t "store-sales-forecasting-api:$IMAGE_TAG" .
+echo "ACR Tasks are blocked on Azure for Students: the image is built by the GitHub Actions pipeline (push to deploy)."; exit 0
 
 VARS='${ACR_LOGIN_SERVER} ${IMAGE_TAG} ${KEY_VAULT_URL} ${STORAGE_ACCOUNT} ${APP_CLIENT_ID} ${APP_HOST}'
 for f in k8s/*.yaml; do envsubst "$VARS" < "$f" | kubectl apply -f -; done
