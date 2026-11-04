@@ -37,7 +37,7 @@ spec:
             - name: APP_VERSION
               value: "${IMAGE_TAG}"
             - name: BREAK_READY      # set to "true" in a commit to demo a failed deploy + auto rollback
-              value: "true"
+              value: "false"
           resources:
             requests: { cpu: "250m", memory: "768Mi" }
             limits:   { cpu: "1",    memory: "2Gi" }
