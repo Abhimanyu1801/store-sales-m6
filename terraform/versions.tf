@@ -8,7 +8,8 @@ terraform {
 }
 
 provider "azurerm" {
-  subscription_id = var.subscription_id
+  subscription_id     = var.subscription_id
+  storage_use_azuread = true # storage has key auth disabled
   features {
     key_vault {
       purge_soft_delete_on_destroy = true # lets us destroy and recreate with the same vault name

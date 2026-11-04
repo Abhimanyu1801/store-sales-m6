@@ -113,13 +113,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = true
 
   # Upgrades need surge nodes, which would exceed the 6-vCPU regional quota.
-  node_os_upgrade_channel   = "None"
+  node_os_upgrade_channel = "None"
 
   default_node_pool {
-    name           = "system"
-    vm_size        = var.aks_vm_size
-    node_count     = var.aks_node_count
-    vnet_subnet_id = azurerm_subnet.aks.id
+    name            = "system"
+    vm_size         = var.aks_vm_size
+    node_count      = var.aks_node_count
+    vnet_subnet_id  = azurerm_subnet.aks.id
     os_disk_size_gb = 64
     upgrade_settings {
       max_surge = "10%"
@@ -154,6 +154,7 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
 
 # ---------------------------------------------------------------- storage (identity-only)
 resource "azurerm_storage_account" "st" {
+  depends_on                      = [time_sleep.blob_rbac]
   name                            = "stsales${local.suffix}"
   resource_group_name             = azurerm_resource_group.rg.name
   location                        = azurerm_resource_group.rg.location
@@ -240,4 +241,16 @@ resource "azurerm_key_vault_secret" "pg_password" {
   value        = random_password.pg.result
   key_vault_id = azurerm_key_vault.kv.id
   depends_on   = [time_sleep.rbac]
+}
+
+# Deployer needs blob data access because the account disables keys; wait for RBAC to propagate.
+resource "azurerm_role_assignment" "deployer_blob" {
+  scope                = azurerm_resource_group.rg.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+resource "time_sleep" "blob_rbac" {
+  depends_on      = [azurerm_role_assignment.deployer_blob]
+  create_duration = "90s"
 }
