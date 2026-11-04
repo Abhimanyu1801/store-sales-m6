@@ -1,0 +1,78 @@
+name: deploy
+
+# Runs on every push to the deploy branch. Build -> deploy -> health check -> auto rollback.
+on:
+  push:
+    branches: [deploy]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # needed for OIDC login to Azure
+  contents: read
+
+env:
+  IMAGE_NAME: store-sales-forecasting-api
+  IMAGE_TAG: ${{ github.sha }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  KEY_VAULT_URL: ${{ vars.KEY_VAULT_URL }}
+  STORAGE_ACCOUNT: ${{ vars.STORAGE_ACCOUNT }}
+  APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
+  APP_HOST: ${{ vars.APP_HOST }}
+  NS: storesales-m5
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC, no stored password)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build image in ACR (tag = commit SHA)
+        run: |
+          az acr build -r "${{ vars.ACR_NAME }}" -t "$IMAGE_NAME:$IMAGE_TAG" .
+
+      - name: Connect to the cluster
+        run: |
+          az aks get-credentials -g "${{ vars.RESOURCE_GROUP }}" -n "${{ vars.AKS_NAME }}" --admin --overwrite-existing
+
+      - name: Deploy manifests
+        run: |
+          VARS='${ACR_LOGIN_SERVER} ${IMAGE_TAG} ${KEY_VAULT_URL} ${STORAGE_ACCOUNT} ${APP_CLIENT_ID} ${APP_HOST}'
+          for f in k8s/*.yaml; do envsubst "$VARS" < "$f" | kubectl apply -f -; done
+
+      - name: Wait for rollout (readiness = model files + database)
+        id: rollout
+        run: |
+          kubectl -n "$NS" rollout status deployment/api --timeout=240s
+          kubectl -n "$NS" rollout status deployment/dashboard --timeout=240s
+
+      - name: Health check the public HTTPS URL
+        id: health
+        run: |
+          curl -fsS --retry 5 --retry-delay 5 "https://$APP_HOST/_stcore/health"
+          echo
+          kubectl -n "$NS" exec deploy/api -- curl -fsS http://localhost:8000/readyz
+          echo
+          kubectl -n "$NS" exec deploy/api -- curl -fsS http://localhost:8000/version
+          echo
+
+      - name: Roll back automatically if anything above failed
+        if: failure()
+        run: |
+          echo "Deployment or health check failed. Rolling back to the previous revision."
+          kubectl -n "$NS" rollout undo deployment/api
+          kubectl -n "$NS" rollout undo deployment/dashboard
+          kubectl -n "$NS" rollout status deployment/api --timeout=240s
+          kubectl -n "$NS" rollout status deployment/dashboard --timeout=240s
+          echo "Verifying the previous version is serving traffic:"
+          curl -fsS --retry 5 --retry-delay 5 "https://$APP_HOST/_stcore/health"; echo
+          kubectl -n "$NS" exec deploy/api -- curl -fsS http://localhost:8000/readyz; echo
+          kubectl -n "$NS" exec deploy/api -- curl -fsS http://localhost:8000/version; echo
+          kubectl -n "$NS" get pods
+          exit 1   # keep the run red so the failure is visible; the rollback is already verified

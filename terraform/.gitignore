@@ -1,0 +1,7 @@
+# never commit state, plans or real variable values
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+terraform.tfvars
+crash.log

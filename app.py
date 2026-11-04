@@ -1,15 +1,20 @@
 import os
+import sys
+import json
+import time
 import asyncio
 from fastapi.concurrency import run_in_threadpool
 from typing import List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from src.pipelines.prediction_pipeline import PredictionPipeline
 
 app = FastAPI()
+
+VERSION = os.getenv("APP_VERSION", "dev")
 
 # Files prediction_pipeline.py loads at request time (see the M2 fix log)
 REQUIRED_ARTIFACTS = [
@@ -18,6 +23,40 @@ REQUIRED_ARTIFACTS = [
     "artifacts/covariates.joblib",
     "artifacts/timeseries_data.joblib",
 ]
+
+
+def log_json(level, message, **fields):
+    """One JSON object per line on stdout. Container Insights ships it to Log Analytics."""
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z",
+        "level": level,
+        "msg": message,
+        "version": VERSION,
+    }
+    record.update(fields)
+    print(json.dumps(record), flush=True)
+
+
+@app.middleware("http")
+async def access_log(request: Request, call_next):
+    start = time.perf_counter()
+    status = 500  # stays 500 if the handler raises
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        path = request.url.path
+        # Skip successful probe noise; every other request, and every 5xx, is logged.
+        if not (path in ("/healthz", "/readyz") and status < 500):
+            log_json(
+                "error" if status >= 500 else "info",
+                "request",
+                method=request.method,
+                path=path,
+                status=status,
+                duration_ms=round((time.perf_counter() - start) * 1000, 1),
+            )
 
 
 class Covariate_params(BaseModel):
@@ -32,6 +71,20 @@ class Covariate_params(BaseModel):
 async def liveness():
     """Liveness: the process is up and can answer HTTP. No dependency checks."""
     return {"status": "alive"}
+
+
+@app.get("/version")
+async def version():
+    """Which build is serving traffic (used to verify a rollback)."""
+    return {"version": VERSION}
+
+
+@app.get("/debug/error")
+async def controlled_error(token: str = ""):
+    """Controlled HTTP 500 for the monitoring demo. Needs the demo token."""
+    if token != os.getenv("DEBUG_TOKEN", "") or not os.getenv("DEBUG_TOKEN"):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    return JSONResponse(status_code=500, content={"error": "controlled test error"})
 
 
 def check_database():
@@ -49,6 +102,9 @@ def check_database():
 @app.get("/readyz")
 def readiness():
     """Readiness: model artifacts exist AND the database is reachable."""
+    if os.getenv("BREAK_READY", "false").lower() == "true":
+        return JSONResponse(status_code=503,
+                            content={"status": "not ready", "reason": "BREAK_READY demo flag"})
     missing = [p for p in REQUIRED_ARTIFACTS if not os.path.exists(p)]
     if missing:
         return JSONResponse(status_code=503,

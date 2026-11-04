@@ -1,0 +1,10 @@
+# Rename to backend.tf after creating the state storage account (see README_M6.md, step 1).
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "tfstate-rg"
+    storage_account_name = "tfstateaj4417"
+    container_name       = "tfstate"
+    key                  = "m6.tfstate"
+    use_azuread_auth     = true
+  }
+}

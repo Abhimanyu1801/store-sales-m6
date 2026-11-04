@@ -1,7 +1,5 @@
 # Public entry point: the cluster's ingress-nginx LoadBalancer (20.80.114.231)
 # -> this Ingress -> dashboard Service -> dashboard pods. The API has NO ingress (internal only).
-# Apply this file only after storesales-api-ingress (storesales namespace) has been removed,
-# because two Ingresses cannot share one hostname.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -20,10 +18,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [storesales-dadb2908.centralus.cloudapp.azure.com]
+    - hosts: [${APP_HOST}]
       secretName: storesales-m5-tls
   rules:
-    - host: storesales-dadb2908.centralus.cloudapp.azure.com
+    - host: ${APP_HOST}
       http:
         paths:
           - path: /

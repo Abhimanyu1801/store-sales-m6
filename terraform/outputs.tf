@@ -1,0 +1,12 @@
+output "resource_group"      { value = azurerm_resource_group.rg.name }
+output "aks_name"            { value = azurerm_kubernetes_cluster.aks.name }
+output "acr_login_server"    { value = azurerm_container_registry.acr.login_server }
+output "acr_name"            { value = azurerm_container_registry.acr.name }
+output "key_vault_url"       { value = azurerm_key_vault.kv.vault_uri }
+output "storage_account"     { value = azurerm_storage_account.st.name }
+output "app_identity_client_id" { value = azurerm_user_assigned_identity.app.client_id }
+output "postgres_fqdn"       { value = azurerm_postgresql_flexible_server.pg.fqdn }
+output "log_analytics_workspace" { value = azurerm_log_analytics_workspace.law.name }
+output "tenant_id"            { value = data.azurerm_client_config.current.tenant_id }
+output "subscription_id"      { value = data.azurerm_client_config.current.subscription_id }
+output "github_client_id"     { value = azurerm_user_assigned_identity.github.client_id }

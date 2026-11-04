@@ -27,12 +27,17 @@ spec:
             matchLabels: { app: api }
       containers:
         - name: api
-          image: avinashstoresalesacr.azurecr.io/store-sales-forecasting-api:v6
+          image: ${ACR_LOGIN_SERVER}/store-sales-forecasting-api:${IMAGE_TAG}
           command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
           ports:
             - containerPort: 8000
           envFrom:
             - configMapRef: { name: store-config }
+          env:
+            - name: APP_VERSION
+              value: "${IMAGE_TAG}"
+            - name: BREAK_READY      # set to "true" in a commit to demo a failed deploy + auto rollback
+              value: "false"
           resources:
             requests: { cpu: "250m", memory: "768Mi" }
             limits:   { cpu: "1",    memory: "2Gi" }

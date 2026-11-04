@@ -5,8 +5,9 @@ metadata:
   name: store-config
   namespace: storesales-m5
 data:
-  KEY_VAULT_URL: "https://kv-storesales-667.vault.azure.net/"
-  STORAGE_ACCOUNT: "storesales28606"
+  KEY_VAULT_URL: "${KEY_VAULT_URL}"
+  STORAGE_ACCOUNT: "${STORAGE_ACCOUNT}"
   BLOB_CONTAINER: "uploads"
   PG_DATABASE: "postgres"
   API_URL: "http://api:8000/"
+  DEBUG_TOKEN: "m6-demo"   # only triggers a fake 500; not a real secret
